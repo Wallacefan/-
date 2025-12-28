@@ -120,98 +120,114 @@ di "Graph: fig1_DQ (記憶體中，可graph export)"
 <h3>Table 1 - PanelA </h3>
 
 * Step 1. 讀入資料
+
 讀入 新replica.dta 作為基礎資料集。
+
 * Step 2. 建構 DQ_BS（Balance Sheet；Value-Weighted）
-定義 BS 子科目清單（Subaccounts）：以 local act_sub ... 等方式列出各群組子科目。
-定義 BS parent 群組（用於權重）：local groups act ao ceq dltt intan ivao lct lo ppent pstk txditc
-計算各群組揭露比例：
+
+1. 定義 BS 子科目清單（Subaccounts）：以 local act_sub ... 等方式列出各群組子科目。
+2. 定義 BS parent 群組（用於權重）：local groups act ao ceq dltt intan ivao lct lo ppent pstk txditc
+3. 計算各群組揭露比例：
 以 egen rownonmiss() 計算該群組子科目「非缺漏數」
 揭露比例 dq_g = nonmissing / total_items_in_group
-計算價值權重並標準化：
+4. 計算價值權重並標準化：
 先算 weight_raw_g = abs(parent_g) / total_assets，再把各群組 raw weight 加總為 total_weight_raw
 再標準化 weight_g = weight_raw_g / total_weight_raw（確保權重總和為 1）
-加權後加總得到 DQ_BS：
+5. 加權後加總得到 DQ_BS：
 vw_dq_g = dq_g * weight_g
 DQ_BS = rowtotal(vw_dq_list)
-對 DQ_BS 做 1%/99% winsorize：
+6. 對 DQ_BS 做 1%/99% winsorize：
 winsor2 DQ_BS, cut(1 99) replace
+
 * Step 3. 建構 DQ_IS（Income Statement；Equal-Weighted with Screening）
-定義 IS 群組與子科目（共 8 組）：Sales、COGS、Op Expenses、Special Items、Interest、Taxes、Minority Interest、Income Below 等。
-Parent screening（適用性判斷）：
+
+1. 定義 IS 群組與子科目（共 8 組）：Sales、COGS、Op Expenses、Special Items、Interest、Taxes、Minority Interest、Income Below 等。
+2. Parent screening（適用性判斷）：
 對每一群組建立 has_is_group_k：當 parent 變數存在且「非缺漏且不等於 0」時，該群組才視為 applicable。
-計算分子/分母：
+3. 計算分子/分母：
 若群組適用（has_is_group_k==1），則該群組的每個子科目都計入分母；子科目若非缺漏則分子 +1。
-計算 DQ_IS：
+4. 計算 DQ_IS：
 DQ_IS = dq_is_numerator / dq_is_denominator（denominator > 0 才計算）
 若 denominator==0 且 numerator==0，程式將 DQ_IS 設為 0（代表沒有任何適用群組）
+
 * Step 4. 計算整體 DQ
+
 DQ = (DQ_BS + DQ_IS) / 2
+
 * Step 5. 樣本限制（Replication Criteria）
-補齊年度欄位：
+
+1. 補齊年度欄位：
 若沒有 year，則優先用 fyear，否則用 year(datadate) 生成。
-保留樣本期間：
+2. 保留樣本期間：
 程式保留 1973–2011：keep if inrange(year, 1973, 2011)
-排除產業（依 SIC）：
+3. 排除產業（依 SIC）：
 金融業：6000–6999
 公用事業：4900–4999
 程式先 destring sic 後再 drop if ...
+
 * Step 6. 產出 Panel A 描述統計並輸出 RTF
-用 tabstat 計算 DQ、DQ_BS、DQ_IS 的 mean sd p25 p50 p75，並以 save 將結果存到 r(StatTotal)。
-將 r(StatTotal) 存成矩陣 T1，必要時轉置（讓列是變數、欄是統計量）。
-設定矩陣列名/欄名（DQ、DQ_BS、DQ_IS；Mean、SD、P25、P50、P75）。
-使用 esttab matrix() 輸出為 Word 可開啟的 RTF，並固定到小數點後三位。
-輸出檔（Output）
-RTF 表格：Table1_PanelA.rtf
-三欄分別為：DQ、DQ_BS、DQ_IS
-內容為DQ、DQ_BS、DQ_IS 的描述性統計（Mean、SD、P25、P50、P75）
-套件需求（Dependencies）
-套件需求（Dependencies）
-winsor2（用於 winsorize DQ_BS）
-estout（用於 esttab 輸出矩陣到 RTF）安裝方式（建議僅需一次）：
-ssc install winsor2, replace
-ssc install estout, replace
-執行方式（How to run）
-在 Stata 14 中將工作目錄設為專案資料夾後執行：
-do "table1 panelA.do"
-Table 2－Correlation Between DQ and Other Measures（Upper: Pearson）
 
-<h3>Table 1 - PanelA </h3>
+1. 用 tabstat 計算 DQ、DQ_BS、DQ_IS 的 mean sd p25 p50 p75，並以 save 將結果存到 r(StatTotal)。
+2. 將 r(StatTotal) 存成矩陣 T1，必要時轉置（讓列是變數、欄是統計量）。
+3. 設定矩陣列名/欄名（DQ、DQ_BS、DQ_IS；Mean、SD、P25、P50、P75）。
+4. 使用 esttab matrix() 輸出為 Word 可開啟的 RTF，並固定到小數點後三位。
+
+<h3>Table 1 - PanelB </h3>
 
 
+
+<h3>Table 1 - PanelC </h3>
 
 
 
 <h3>Table 2 </h3>
 
-* 讀入資料use "新replica.dta", clear
-*  建構 DQ 指標（與 Table 1 同源計算）
-依資產負債表科目分組，建構 DQ_BS（value-weighted）：
+* 讀入資料
+
+use "新replica.dta", clear
+
+* 建構 DQ 指標（與 Table 1 同源計算）
+
+1. 依資產負債表科目分組，建構 DQ_BS（value-weighted）：
+
 對每一群組計算揭露比例（非缺漏子科目數／該群組子科目總數）。
 以 parent 科目金額在總資產的占比作為 raw weight，並標準化權重使加總為 1。
 將各群組揭露比例乘上權重後加總得到 DQ_BS；並對 DQ_BS 進行 1%/99% winsorize（winsor2）。
-依損益表科目分組，建構 DQ_IS（equal-weight + applicable screening）：
+
+2. 依損益表科目分組，建構 DQ_IS（equal-weight + applicable screening）：
+
 先用 parent→child screening 判斷各 group 是否適用（parent=0 或缺漏時，該 group 子科目不納入分母）。
 以「適用子科目非缺漏數／適用子科目總數」計算 DQ_IS。
-定義整體 DQ：DQ = (DQ_BS + DQ_IS) / 2。
-*  樣本限制（Sample restrictions）
-年度對齊：若缺 year，依序用 fyear 或 datadate 生成 year。
-期間限制：僅保留 1993–2011 年度觀測值（keep if inrange(year, 1993, 2011)）。
-產業排除：將 sic 轉為數值（destring）後排除
+
+3. 定義整體 DQ：DQ = (DQ_BS + DQ_IS) / 2。
+
+* 樣本限制（Sample restrictions）
+
+1. 年度對齊：若缺 year，依序用 fyear 或 datadate 生成 year。
+2. 期間限制：僅保留 1993–2011 年度觀測值（keep if inrange(year, 1993, 2011)）。
+3. 產業排除：將 sic 轉為數值（destring）後排除
 金融業：SIC 6000–6999
 公用事業：SIC 4900–4999
-*  計算相關係數矩陣（Pearson）
-設定變數清單：local vars DQ DQ_BS DQ_IS。
-計算 Pearson 相關：
+
+* 計算相關係數矩陣（Pearson）
+
+1. 設定變數清單：local vars DQ DQ_BS DQ_IS。
+2. 計算 Pearson 相關：
 corr `vars'
 取出 r(C) 存為矩陣 R_Pearson。
-設定矩陣列名與欄名為 DQ、DQ_BS、DQ_IS，並可用 matrix list 預覽。
-*　輸出 Table 2（RTF）
+3. 設定矩陣列名與欄名為 DQ、DQ_BS、DQ_IS，並可用 matrix list 預覽。
+
+* 輸出 Table 2（RTF）
+
 使用 esttab 將 R_Combined 輸出為 RTF：
 檔名：Table2.rtf
 顯示格式：小數點後三位（fmt(3)），不顯示觀測數與多餘標頭（nonumbers、noobs、nomtitles）。
-*  輸出資料（Intermediate output）
+
+* 輸出資料（Intermediate output）
+
 Table2.rtf
 內容：DQ、DQ_BS、DQ_IS 的相關係數矩陣（Pearson）。
+
 
 <h3>Table 3 PanelA&B_法一 </h3>
 
