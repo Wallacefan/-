@@ -368,8 +368,149 @@ file close `fhB'
 2.	執行Table3_法一.do
 3.	檢查是否確實輸出panelA&panelB表格與確實出現「Table 3 重現完成！」訊息
 
+<h3>Table 3 PanelA&B_法二 </h3>
+
+* 區塊1：初始化與Log設定
+
+capture log close
+set more off
+log using "Table3_法二.log", replace text
+
+操作細節：關閉舊log → 關閉畫面暫停 → 開啟文字格式log記錄檔。
+
+邏輯與目的：確保乾淨執行環境，完整記錄重現過程。
+
+* 區塊2：資料載入（僅give.dta）
+
+clear all
+use "give.dta", clear
+display "載入 give.dta: " _N " 觀測值"
+count; if r(N)==0 { display as error "錯誤！"; exit 2000 }
+操作細節：清空記憶體 → 載入give.dta → 顯示總觀測值 → 若為0則報錯中止。
+
+邏輯與目的：法二核心特色 - 驗證單一輸入檔案可用性，無需外部ret.dta。
+
+* 區塊3：年度變數生成
+
+capture confirm var fyear
+if _rc gen year = year(datadate)
+
+操作細節：檢查fyear是否存在 → 若無則由datadate日期變數提取年份。
+
+邏輯與目的：標準化時間變數格式，確保後續年份固定效果可用。
+
+* 區塊4：分析變數生成（法二核心）
+
+foreach v in aqp rcp spi at NSEG re DQ sic { confirm var `v' }
+gen MA = (aqp != . & aqp != 0)
+gen Restructure = (rcp != . & rcp != 0)
+gen AT_dollar = abs(at); gen SI = abs(spi)/AT_dollar
+gen AT = AT_dollar/1e9; gen log_AT = ln(AT)
+gen log_nseg = ln(NSEG)
+destring gvkey, generate(gvkey_n)
+bysort gvkey_n: egen sigma_RET = sd(re)
+gen sigma_RET_100 = sigma_RET * 100
+操作細節：
+1.	檢查9個必要變數（含re關鍵變數）
+2.	生成重組dummy變數：MA、Restructure
+3.	標準化變數：SI、log_AT、log_nseg
+4.	法二核心：gvkey內re標準差→sigma_RET→×100
+
+邏輯與目的：法二最大創新 - 使用give.dta內建re (Retained Earnings)按gvkey公司層級計算波動率。
+
+* 區塊5：樣本篩選
+
+keep if inrange(year, 1976, 2011)
+capture confirm var sic
+if !_rc {
+    destring sic, replace ignore(" ")
+    gen sic2 = floor(sic/100)
+    drop if inlist(sic2, 49,60,61,62,63,64,65,66,67,68,69)
+}
+操作細節：保留1976-2011年 → sic字串轉數字 → sic2前2碼 → 排除金融(sic2=60-69)/公用事業(sic2=49)。
+
+邏輯與目的：與法一完全一致樣本定義，確保結果可比性。
+
+* 區塊6：Winsorize極值處理
+
+capture ssc install winsor2, replace
+foreach v in SI sigma_RET_100 log_AT log_nseg {
+    winsor2 `v', replace cuts(1 99)
+}
+操作細節：自動安裝winsor2 → 對4連續變數執行1%-99%雙尾截斷。
+
+邏輯與目的：標準計量經濟學穩健性處理，消除離群值影響。
+
+* 區塊7：最終樣本驗證
+
+pwcorr DQ Restructure MA SI sigma_RET_100 log_AT log_nseg, star(0.10)
+reghdfe DQ `xvars', absorb(i.year i.sic2) vce(cluster year sic2)
+
+操作細節：Panel A相關矩陣 + Panel B固定效果迴歸。
+
+邏輯與目的：與法一相同統計規格。
+
+* 區塊8：Panel A - Pearson相關矩陣
+
+pwcorr DQ Restructure MA SI sigma_RET_100 log_AT log_nseg, star(0.10)
+matrix M = r(C)
+操作細節：計算7變數Pearson相關矩陣 → 顯著性星號(p<0.10) → 儲存矩陣M。
+
+邏輯與目的：生成Table 3 Panel A統計基礎。
+
+* 區塊9：儲存中間樣本
+
+local today = c(current_date)
+save "give_final_`today'.dta", replace
+
+操作細節：以當日日期命名儲存完整分析樣本。
+
+邏輯與目的：保留清理後資料，方便驗證與重複使用。
+
+* 區塊10：Panel A RTF表格輸出
+
+tempname fhA; local corrfile "Table3_PanelA_`today'.rtf"
+file open `fhA' using "`corrfile'", write replace
+file write `fhA' "{\rtf1\ansi\deff0" _n
+... **使用file write逐行輸出矩陣M → RTF表格** ...
+file close `fhA'
+
+操作細節：file open開檔 → file write逐行生成RTF語法 → 矩陣M轉表格（對角線"-"）→ file close。
+
+邏輯與目的：生成論文標準Panel A相關矩陣表格
+
+
+* 區塊11：Panel B主迴歸分析
+
+reghdfe DQ `xvars', absorb(i.year i.sic2) vce(cluster year sic2)
+matrix b_raw = e(b); matrix V = e(V)
+matrix b100 = b * 100; matrix t_vals = b/se
+
+操作細節：固定效果迴歸 → 提取係數矩陣 → 計算t統計量 → 係數×100。
+
+邏輯與目的：核心計量模型，年產業雙固定效果 + 雙向cluster標準差。
+
+* 區塊12：Panel B RTF表格輸出
+
+tempname fhB; local fname "Table3_PanelB_`today'.rtf"
+file open `fhB' using "`fname'", write replace
+... **使用file write生成7行標準結構** ...
+file close `fhB'
+
+操作細節：file write → 7行結構（變數名/預測符號/係數×100/t值/N/R²/註解）→ RTF檔案完成。
+
+邏輯與目的：生成論文標準Panel B迴歸表，註解明確法二sigma_RET來源。
+
+重現步驟總結
+1.	將give.dta置於Stata工作目錄
+
+2.	執行Table3_法二.do
+
+3.	檢查是否確實輸出Panel A & Panel B表格與確實出現「完美完成！（法二 - 僅 give.dta）」訊息
+
 
 <h3>Table 4 </h3>
+
 首先把完整主檔.dta打開，內含之前計算的DQ、Compustat資料、股價資料及各種所需變數，並與 EPS真.dta 併檔。
 併檔後針對actual_EPS 進行平減（按照股價）
 導入rangestat進行EPS之標準差計算。
