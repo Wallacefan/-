@@ -24,6 +24,99 @@
 | L2   | _italic_ |    $1 | $1600 | $1600 |
 
 <h2>Description of programs/code</h2>
+
+<h3>Figure 1 </h3>
+
+* 區塊0：初始化與Log設定
+
+capture log close; set more off; log using "Figure1.log", replace text
+
+操作細節：關閉舊log → 自動連續執行 → 開啟文字log。
+
+邏輯與目的：建立乾淨環境，完整記錄18組帳戶計算過程。
+
+
+* 區塊1：讀取Compustat資料
+
+use "新replica.dta", clear; di "Data loaded: N=" _N ", K=" c(k)
+
+操作細節：載入Compustat → 顯示觀測值/變數。
+
+邏輯與目的：驗證原始資料完整性（含18組帳戶）。
+
+* 區塊2：資產負債表品質(DQ_BS)
+
+local bsgroups "act ao ceq dltt intan ivao lct lo ppent pstk txditc" 
+foreach g of local bsgroups {
+    egen nonmiss_`g' = rownonmiss(``g'')  
+    gen dq_`g' = nonmiss_`g' / `total_`g''  
+}
+egen DQ_BS = rowmean(dq_*)  
+
+操作細節：11組BS帳戶 → 每組非缺漏比例 → 等權重平均。
+
+邏輯與目的：計算資產負債表資料完整度（0-1分數）。
+
+* 區塊3：損益表品質(DQ_IS)
+
+local isgroups "citotal nopi spi txt xido xint xopr"
+foreach g of local isgroups { ... 同上計算 ... }
+egen DQ_IS = rowmean(dq_*)
+
+操作細節：7組IS帳戶 → 每組非缺漏比例 → 等權重平均。
+
+邏輯與目的：計算損益表資料完整度。
+
+* 區塊4：綜合品質(DQ)與年份
+
+gen DQ = (DQ_BS + DQ_IS)/2 
+gen year = fyear 
+
+操作細節：DQ = (DQ_BS + DQ_IS)/2 → 提取年度變數。
+
+邏輯與目的：生成Figure 1 Y軸主變數 + 時間維度。
+
+* 區塊5：年度聚合
+
+collapse (mean) DQ DQ_BS DQ_IS, by(year)
+
+操作細節：公司層面 → 年度平均（刪除個體差異）。
+
+邏輯與目的：生成39年時間序列（1973-2011）。
+
+* 區塊6：繪製Figure 1趨勢圖
+
+twoway (line DQ year, lpattern(solid)) ///
+       (line DQ_BS year, lpattern(dash)) ///
+       (line DQ_IS year, lpattern(dot)), ///
+       xlabel(1973(2)2011) ylabel(0(0.1)1) ///
+       legend(order(1 "Overall DQ" 2 "DQ_BS" 3 "DQ_IS")) ///
+       title("Temporal Trend of Data Quality")
+
+操作細節：折線圖（實線：綜合DQ | 虛線：DQ_BS | 點線：DQ_IS） 
+•	X軸：1973-2011年份（每2年標記）
+•	Y軸：0-1品質分數範圍。
+
+邏輯與目的：呈現資料品質指標的長期時間趨勢
+
+* 區塊7：執行完成
+
+di "Figure1 Analysis COMPLETED SUCCESSFULLY!"
+di "Graph: fig1_DQ (記憶體中，可graph export)"
+
+操作細節：顯示成功訊息 → 圖形儲存於記憶體。
+
+邏輯與目的：確認重現完成，指引圖形匯出。
+
+* 重現步驟總結
+
+1.	將新replica.dta置於Stata工作目錄
+
+2.	執行Figure1.do
+
+3.	檢查Figure1.log與記憶體圖形fig1_DQ → graph export "Figure1.png", replace
+
+
 <h3>Table 1 - PanelA </h3>
 
 * Step 1. 讀入資料
@@ -82,6 +175,12 @@ ssc install estout, replace
 do "table1 panelA.do"
 Table 2－Correlation Between DQ and Other Measures（Upper: Pearson）
 
+<h3>Table 1 - PanelA </h3>
+
+
+
+
+
 <h3>Table 2 </h3>
 
 * 讀入資料use "新replica.dta", clear
@@ -114,6 +213,160 @@ corr `vars'
 Table2.rtf
 內容：DQ、DQ_BS、DQ_IS 的相關係數矩陣（Pearson）。
 
+<h3>Table 3 PanelA&B_法一 </h3>
+
+* 步驟0：初始化與log設定
+
+set more off
+log using "Table3_法一(no table3).log", replace
+
+操作細節：
+•	set more off：關閉Stata預設的「畫面暫停」功能（預設每14行暫停，按Enter繼續）
+•	log using ...：開啟執行log記錄檔案，記錄所有命令與結果
+
+邏輯與目的：set more off確保程式自動連續執行不中斷，log檔案完整記錄用於除錯、重現驗證與結果檢查。
+
+*步驟1：載入ret.dta並計算sigma_RET
+
+use "ret.dta", clear
+gen year = year(date)
+keep TICKER year RET
+drop if missing(TICKER) | missing(year) | missing(RET)
+bysort TICKER year: gen n_ret = _N
+bysort TICKER year: egen sigma_RET = sd(RET)
+drop if missing(sigma_RET)
+drop n_ret RET
+duplicates drop TICKER year, force
+save "sigma_by_ticker_year.dta", replace
+
+操作細節：
+1.	載入ret.dta，清除記憶體
+2.	由date產生year變數
+3.	僅保留TICKER、year、RET
+4.	移除遺漏值
+5.	計算每個TICKER-year的觀測數與RET標準差
+6.	移除無法計算sd的觀測值，清理變數，儲存中間檔案
+
+操作步驟：載入ret.dta→提取年份→清理遺漏值→計算標準差→儲存中間檔案。
+
+邏輯與目的：股票報酬波動率(sigma_RET)是核心解釋變數，必須由每月報酬資料依公司年度(TICKER-year)計算標準差。此步驟標準化波動率計算，為後續合併準備唯一匹配鍵值。
+
+* 步驟2：載入give.dta並合併sigma_RET
+
+clear all
+use "give.dta", clear
+capture confirm var year / fyear / date → gen year
+rename tic TICKER
+replace TICKER = upper(trim(TICKER))
+merge m:1 TICKER year using "sigma_by_ticker_year.dta"
+drop if _merge_sigma==2
+
+操作細節：
+1.	清空記憶體載入give.dta
+2.	自動偵測並標準化年份變數
+3.	標準化TICKER（大寫+去空格）
+4.	m:1合併並檢查匹配率，移除未匹配觀測值
+
+操作步驟：標準化變數名→m:1合併→檢查匹配率→移除未匹配
+
+邏輯與目的：將公司基本面資料與波動率資料精準連結，TICKER+year為唯一匹配鍵。m:1合併確保每個公司年觀測值對應唯一sigma_RET值，建立完整分析資料集。
+步驟3：生成分析變數
+foreach v in aqp rcp spi at NSEG DQ sic { confirm var `v' }
+gen MA = (aqp != . & aqp != 0)
+gen Restructure = (rcp != . & rcp != 0)
+gen AT_dollar = abs(at)
+gen SI = abs(spi) / AT_dollar
+gen AT = AT_dollar/1e9
+gen log_AT = ln(AT)
+gen log_nseg = ln(NSEG)
+
+
+操作細節：
+1.	檢查8個必要原始變數
+2.	產生二元變數MA、Restructure
+3.	計算標準化變數SI、AT(億美元)、log變數
+
+操作步驟：檢查原始變數→產生二元變數→標準化計算
+
+邏輯與目的：依論文Table 3定義，將原始財務資料轉換為標準化分析變數。虛擬變數捕捉重組活動存在性，log變數處理偏態分佈，SI標準化結構複雜度，確保變數定義完全一致。
+
+* 步驟4：樣本篩選
+
+keep if inrange(year, 1976, 2011)
+sic字串→數字 → sic2 = floor(sic/100)
+drop if inlist(sic2, 49,60-69)
+
+操作細節：
+1.	時間範圍限制1976-2011
+2.	自動處理sic產業代碼，排除金融+公用事業
+
+操作步驟：時間限制→產業代碼處理→排除金融公用事業。
+
+邏輯與目的：符合論文樣本定義，非金融非公用事業為標準篩選，避免特殊產業特性（如高槓桿）干擾重組活動與揭露品質的因果關係。
+
+* 步驟5：Winsorize極值處理
+
+capture ssc install winsor2, replace
+foreach v in SI sigma_RET log_AT log_nseg {
+    winsor2 `v', replace cuts(1 99)
+}
+
+操作細節：自動安裝winsor2，對4個連續變數1%-99%尾部截斷。
+
+操作步驟：自動安裝winsor2→1%-99%尾部截斷。
+
+邏輯與目的：標準計量經濟學做法，減少極端離群值對迴歸係數估計的影響，確保統計推論穩健性。
+
+*　步驟6：統計分析
+
+pwcorr DQ Restructure MA SI sigma_RET log_AT log_nseg, star(0.10)
+reghdfe DQ Restructure MA SI sigma_RET log_AT log_nseg, ///
+    absorb(i.year i.sic2) vce(cluster year sic2)
+
+操作細節：
+•	Panel A：Pearson相關矩陣+顯著性標記
+•	Panel B：固定效果迴歸+雙向cluster標準差
+
+操作步驟：Panel A相關矩陣→Panel B固定效果迴歸。
+
+邏輯與目的：Panel A檢驗變數間相關性，Panel B測試重組活動對DQ的主效應，控制公司規模、複雜度、波動率，年產業固定效果+cluster標準誤處理時間序列與跨產業相關性。
+
+* 步驟7：RTF表格輸出
+
+Part 6. RTF輸出：Panel A（相關性表）
+tempname fhA
+local today = c(current_date)
+local corrfile "Table3_PanelA_`today'.rtf"
+file open `fhA' using "`corrfile'", write replace
+file write `fhA' "{\rtf1\ansi\deff0" _n
+file write `fhA' "\b Table 3 Panel A: Correlation matrix (Pearson)\b0\par" _n
+... (RTF表格格式化相關矩陣，對角線顯示"-") ...
+file close `fhA'
+
+** Part 7. RTF輸出：Panel B（迴歸結果） 
+tempname fhB
+local fname "Table3_PanelB_`today'.rtf"
+file open `fhB' using "`fname'", write replace
+file write `fhB' "{\rtf1\ansi\ansicpg1252" _n
+... ** 表格必要條件：7行結構**…
+1. 變數名稱行
+2. 預測符號行  
+3. 係數×100行
+4. t統計量行 (括號)
+5. NOBS行
+6. Adjusted R²行
+7. 註解行
+
+file close `fhB'
+操作細節：手動撰寫RTF原始碼，Panel A相關矩陣(對角線"-")，Panel B七行表格(變數名、預測符號、係數×100、t值、N、Adj R²、註解)。
+
+邏輯與目的：生成符合學術期刊標準的RTF格式迴歸表，直接匯入文書處理軟體。係數乘以100轉換為百分比形式，提升經濟意義的可讀性；完整註解闡述模型規格、樣本篩選標準、穩健性處理程序及資料來源，確保結果完全可重現。
+
+* 重現步驟總結
+
+1.	將ret.dta、give.dta置於Stata工作目錄
+2.	執行Table3_法一.do
+3.	檢查是否確實輸出panelA&panelB表格與確實出現「Table 3 重現完成！」訊息
 
 
 <h3>Table 4 </h3>
