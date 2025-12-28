@@ -17,8 +17,13 @@
   
 | 產出圖表 |  相關 Do 檔  | 相關 .dta 檔 | 資料庫來源 | 雲端硬碟位置 |
 |:-----|:--------:|:--------:|:--------:|:------:|
+| Figure1  | Figure1.do  |  新replica.dta | Compustat, LBES  | 資料夾"Figure1"內 |
+| Table 1 panel A | table1 panelA.do  |  新replica.dta | Compustat, LBES | 資料夾"table1_panelA"內 |
+| Table 2 | Table2.do |  新replica.dta | Compustat, LBES  | 資料夾"Table 2"內 |
+| Table 3 | Table3_法一.do |  give.dta；ret.dta | Compustat,CRSP Stock (Annual) | 資料夾"Table3之法一"內 |
+| Table 3 | Table3_法二.do |  give.dta | Compustat | 資料夾"Table3之法二"內 |
 | Table 4 | JAR_1976-2011_table4.do | 完整主檔.dta ; DISP_FE.dta ; EPS真.dta ; LBES_DISP.dta ; table3大表.dta | Compustat, LBES | 資料夾"Table4"內 |
-| L1   |  `code`  |   $12 | $1600 | $1600 |
+| Table 7 Panel A | table7 A1.do | 完整主檔.dta；EPS真.dta；LBES_DISP.dta；DISP_FE.dta；新replica.dta | Compustat, LBES  | 資料夾"Table7_PanelA"內 |
 | L2   | _italic_ |    $1 | $1600 | $1600 |
 | L2   | _italic_ |    $1 | $1600 | $1600 |
 | L2   | _italic_ |    $1 | $1600 | $1600 |
