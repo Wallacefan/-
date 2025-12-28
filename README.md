@@ -16,7 +16,7 @@
   <h3>Details on each Data Source</h3>
   
 | 產出圖表 |  相關 Do 檔  | 相關 .dta 檔 | 資料庫來源 | 雲端硬碟位置 |
-|:-----|:--------:|:--------:|:--------:|------:|
+|:-----|:--------:|:--------:|:--------:|:------:|
 | Table 4 | JAR_1976-2011_table4.do | 完整主檔.dta ; DISP_FE.dta ; EPS真.dta ; LBES_DISP.dta ; table3大表.dta | Compustat, LBES | 資料夾"Table4"內 |
 | L1   |  `code`  |   $12 | $1600 | $1600 |
 | L2   | _italic_ |    $1 | $1600 | $1600 |
@@ -507,6 +507,16 @@ file close `fhB'
 2.	執行Table3_法二.do
 
 3.	檢查是否確實輸出Panel A & Panel B表格與確實出現「完美完成！（法二 - 僅 give.dta）」訊息
+
+<h3>Table 3 法一法二比較表格 </h3>
+
+| 項目 |  法一  | 法二 | 
+|:-----|:--------:|:--------:|
+| 輸入檔案 | ret.dta + give.dta | 僅 give.dta |
+| sigma_RET來源  |月報酬RET  | Retained Earnings (re) |
+| 匹配層級 | TICKER-year | gvkey-level |
+| 程式區塊 | 7區塊 | 12區塊 |
+| 中間檔案 | sigma_by_ticker_year.dta | give_final_*.dta | 
 
 
 <h3>Table 4 </h3>
