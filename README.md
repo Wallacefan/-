@@ -26,7 +26,7 @@
 <h2>Description of programs/code</h2>
 <h3>Table 1 panelA </h3>
 
-*  Step 1. 讀入資料
+* Step 1. 讀入資料
 讀入 新replica.dta 作為基礎資料集。
 * Step 2. 建構 DQ_BS（Balance Sheet；Value-Weighted）
 定義 BS 子科目清單（Subaccounts）：以 local act_sub ... 等方式列出各群組子科目。
@@ -83,8 +83,8 @@ do "table1 panelA.do"
 Table 2－Correlation Between DQ and Other Measures（Upper: Pearson）
 
 <h3>Table 2 </h3>
-*  讀入資料
-use "新replica.dta", clear
+
+* 讀入資料use "新replica.dta", clear
 *  建構 DQ 指標（與 Table 1 同源計算）
 依資產負債表科目分組，建構 DQ_BS（value-weighted）：
 對每一群組計算揭露比例（非缺漏子科目數／該群組子科目總數）。
