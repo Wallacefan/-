@@ -24,7 +24,7 @@
 | L2   | _italic_ |    $1 | $1600 | $1600 |
 
 <h2>Description of programs/code</h2>
-<h3>Table 1 panelA </h3>
+<h3>Table 1 - PanelA </h3>
 
 * Step 1. 讀入資料
 讀入 新replica.dta 作為基礎資料集。
@@ -151,6 +151,127 @@ GROWTH。
 用eststo生成各項表達欄位，包括DISP及FE有fund無fund四欄。
 並加入表格下方詳細資訊，是否、有無、顯著程度等標記。
 最後即可輸出表格到word
+
+<h3>Table 7－Panel B </h3>
+
+* A. 建立中介資料集（modules）
+
+* A1. EPS 波動（eps_sd, eps_vol_rank）
+Inputs
+完整主檔.dta
+EPS真.dta
+* Steps
+合併：merge m:m TICKER fyear using EPS真.dta
+平減 EPS：eps_adj = actual_eps / prcc_f（若 prcc_f<=0 則設為 missing）
+以 rangestat 計算過去 5 年窗（t-4 到 t）的波動：
+rangestat (sd) eps_sd = eps_adj, interval(fyear -4 0) by(gvkey)
+以十分位分組：xtile eps_vol_rank = eps_sd, n(10)
+* Output
+EPS波動.dta
+A2. 成長（GROWTH）
+* Input
+完整主檔.dta
+* Steps
+sales_growth = (sale - sale[_n-1]) / sale[_n-1]
+rangestat (mean) GROWTH = sales_growth, interval(fyear -4 0) by(gvkey)
+winsorize：winsor2 GROWTH, cut(1 99) replace
+* Output
+GROWTH.dta
+* A3. ROA
+* Input
+完整主檔.dta
+* Steps
+ROA = ib / at
+winsorize：winsor2 ROA, cut(1 99) replace
+* Output
+ROA.dta
+* A4. 分析師追蹤（log(AF)）
+* Input
+LBES_DISP.dta
+* Steps
+由 STATPERS 產生 fyear
+先取月平均 NUMEST，再取年平均得到 AF
+log_AF = log(AF)
+* Output
+AF.dta
+* A5. 公司規模（log(AT)）
+* Input
+完整主檔.dta
+* Steps
+log_at = log(at)
+* Output
+AT.dta
+* A6. 依變數清理（DISP、|FE|；先不平減）
+* Input
+DISP_FE.dta
+* Steps
+保留 TICKER fyear DISP FE_abs
+collapse (mean) DISP FE_abs, by(TICKER fyear)
+* Output
+乾淨DISP_FE.dta
+* A7. DQ 清理（含 DQ_BS、DQ_IS、ff12、prcc_f）
+* Input
+完整主檔.dta
+* Steps
+保留：TICKER fyear DQ DQ_BS DQ_IS ff12 prcc_f
+轉數值（如為字串）：destring ... , replace force
+移除關鍵欄位全缺漏觀測值
+collapse (mean) DQ DQ_BS DQ_IS ff12 prcc_f, by(TICKER fyear)
+* Output
+乾淨DQ.dta
+* A8–A12. 其餘模組清理（EPS/GROWTH/ROA/AF/AT）
+* Inputs
+EPS波動.dta, GROWTH.dta, ROA.dta, AF.dta, AT.dta
+* Steps
+各自保留必要欄位並 collapse (mean) 至 firm-year
+* Outputs
+乾淨EPS.dta, 乾淨GROWTH.dta, 乾淨ROA.dta, 乾淨AF.dta, 乾淨AT.dta
+* B. 1:1 合併為最終分析檔，並於最後進行平減（deflation）
+Base dataset
+乾淨DISP_FE.dta
+* Merge order (all by TICKER fyear)
+依序合併：
+乾淨EPS.dta
+乾淨GROWTH.dta
+乾淨ROA.dta
+乾淨AF.dta
+乾淨AT.dta
+乾淨DQ.dta
+* Deflation step（關鍵）
+合併完成後，以 prcc_f 平減：
+DISP = DISP / prcc_f（若 prcc_f>0）
+FE_abs = FE_abs / prcc_f（若 prcc_f>0）
+若 prcc_f<=0，則將 DISP 與 FE_abs 設為 missing
+* Output
+併檔.dta（Table 7 Panel B 的最終 firm-year 分析檔）
+* C. Panel B1（A route）固定效果迴歸與輸出
+* Input
+併檔.dta
+* Sample restriction
+僅保留回歸所需且不缺漏的觀測值：
+DISP, FE_abs, DQ_BS, DQ_IS, eps_vol_rank, log_AF, log_at, GROWTH, ROA, ff12, fyear
+* Winsorization
+winsor2 DISP FE_abs ROA GROWTH, cut(1 99) replace
+* Dependent variable scaling
+DISP_scaled = DISP * 100
+FE_scaled = FE_abs * 100
+* Regression specification
+固定效果：absorb(ff12 fyear)
+控制變數：
+Base controls：eps_vol_rank log_AF log_at
+Fundamentals：GROWTH ROA
+四個模型（以 eststo 儲存）：
+DISP（不含 fundamentals）
+DISP（含 fundamentals）
+|FE|（不含 fundamentals）
+|FE|（含 fundamentals）
+* Output table
+使用 esttab 輸出：
+檔名： Table7_PanelB1_Aroute.rtf
+顯示：係數三位小數、括號 t 值兩位小數、顯著性星號
+僅保留：DQ_BS、DQ_IS
+
+
 
 
 
