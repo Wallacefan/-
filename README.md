@@ -152,6 +152,28 @@ GROWTH。
 並加入表格下方詳細資訊，是否、有無、顯著程度等標記。
 最後即可輸出表格到word
 
+<h3>Table 7－Panel A </h3>
+
+* 1.產生各項控制變數與中介變數：
+
+關於 EPS 波動，先把 EPS 檔併入主檔，然後對每家公司計算過去四年（fyear −4 到 fyear）的 EPS 調整後值（以股價平減後的 actual_eps/prcc_f）之標準差，並以 rangestat 計算該區間的標準差，最後將其分為十等分（xtile eps_vol_rank, n(10)）作為 EPS 波動等級。關於 GROWTH，以銷售額計算年成長率，並以 rangestat 取過去四年的平均值。ROA 的定義為 ib 除以 at。分析師覆蓋度 AF 的來源是 LBES 的月度資料：先以公司、年度與月份群組計算每月的分析師人數平均（af_month），再以公司年度群組取月均值得到 AF，最後生成 log_AF（目前 DO 未對 AF=0 特別處理）。規模變數以 log_at = log(at) 得到。
+
+* 2.DISP 與 FE 的處理：
+
+讀入 DISP_FE.dta，並以公司與年度（TICKER fyear）群組將 monthly 或 analyst-level 的 DISP 與 FE_abs 取平均（collapse (mean) DISP FE_abs, by(TICKER fyear)），把每個公司在該年度的值匯總成 firm-year 水準。在完成與其他檔案的合併之後，使用對應的期末股價 prcc_f 對 DISP 與 FE_abs 做 price-normalization，再把 DISP 與 FE_abs 乘以 100 生成 DISP_scaled 與 FE_scaled 以便於表格呈現。
+
+* 3.DQ_OP 與 DQ_FIN 的建構：
+
+在新replica.dta中以 local lists 列出Compustat mnemonics，分別歸於 op_assets、op_liabs、op_inc、fin_debt、fin_eq、fin_inc 等群組。對於 lists 中實際存在的變數，我們為每一個變數生成一個非缺失指標 nm_<var>，表示該子科目在該公司是否有揭露；並實作 parent→child 的 screening，當父項為 0 或遺漏時，將該父項下的子科目對應的 nm_ 設為 missing，確保只有 applicable 的子科目被計入分母。相同地，對 ppent、intan、ao、txt、xopr 等父項執行相同邏輯；對於融資面也針對 dltt、dlc、pstk、ceq、xint、citotal 等父項對相應子項做相同處理。最後，以等權的方式對所有 applicable 的 nm_ 子項取平均，分別用 egen DQ_OP = rowmean(...) 與 egen DQ_FIN = rowmean(...) 得到每家公司年度的營運揭露分數與融資揭露分數，接著以公司年度群組 collapse 成 firm-year 平均並存檔。
+
+* 4.合併樣本：
+
+將多個已清理的子檔（如 DISP_FE、EPS 波動、GROWTH、ROA、AF、AT、DQ 等）以公司與年度（TICKER fyear）進行一對一合併（merge 1:1 TICKER fyear），合併後的最終檔案命名為 併檔.dta。合併完成之後，對被解釋變數與控制變數再次進行尺度處理與清理，包括以 prcc_f 做 price-normalization（如前述），以及針對 DISP、FE_abs、ROA、GROWTH 進行 1%/99% 的 winsorize（winsor2 DISP FE_abs ROA GROWTH, cut(1 99)）。
+
+* 5.迴歸估計：
+
+在最終整理完成的 firm-year 資料上，使用 reghdfe 執行 Table 7 Panel A1 的四個主要迴歸規格。第一列（Column 1），以 DISP_scaled 為被解釋變數，並僅放入基本控制變數（Base Controls）；第二列（Column 2），以 DISP_scaled 為被解釋變數，並加入基本控制變數與公司基本面控制（Fundamentals）；第三列（Column 3），以 FE_scaled（|FE|）為被解釋變數且僅放基本控制；第四列（Column 4），以 FE_scaled 為被解釋變數並加入基本控制與公司基本面控制。所有迴歸皆吸收產業固定效果（ff12）與年度固定效果（fyear），標準誤以產業（ff12）與年度（fyear）進行群集校正（vce(cluster ff12 fyear)）。最終使用 esttab 將四欄回歸結果輸出為 Table7_PanelA1.rtf，並在表中只呈現 DQ_OP 與 DQ_FIN 的係數與標準誤，以便直接比較二者對 DISP 與 |FE| 的影響。
+
 <h3>Table 7－Panel B </h3>
 
 * A. 建立中介資料集（modules）
