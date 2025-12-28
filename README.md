@@ -82,6 +82,39 @@ ssc install estout, replace
 do "table1 panelA.do"
 Table 2－Correlation Between DQ and Other Measures（Upper: Pearson）
 
+<h3>Table 2 </h3>
+*  讀入資料
+use "新replica.dta", clear
+*  建構 DQ 指標（與 Table 1 同源計算）
+依資產負債表科目分組，建構 DQ_BS（value-weighted）：
+對每一群組計算揭露比例（非缺漏子科目數／該群組子科目總數）。
+以 parent 科目金額在總資產的占比作為 raw weight，並標準化權重使加總為 1。
+將各群組揭露比例乘上權重後加總得到 DQ_BS；並對 DQ_BS 進行 1%/99% winsorize（winsor2）。
+依損益表科目分組，建構 DQ_IS（equal-weight + applicable screening）：
+先用 parent→child screening 判斷各 group 是否適用（parent=0 或缺漏時，該 group 子科目不納入分母）。
+以「適用子科目非缺漏數／適用子科目總數」計算 DQ_IS。
+定義整體 DQ：DQ = (DQ_BS + DQ_IS) / 2。
+*  樣本限制（Sample restrictions）
+年度對齊：若缺 year，依序用 fyear 或 datadate 生成 year。
+期間限制：僅保留 1993–2011 年度觀測值（keep if inrange(year, 1993, 2011)）。
+產業排除：將 sic 轉為數值（destring）後排除
+金融業：SIC 6000–6999
+公用事業：SIC 4900–4999
+*  計算相關係數矩陣（Pearson）
+設定變數清單：local vars DQ DQ_BS DQ_IS。
+計算 Pearson 相關：
+corr `vars'
+取出 r(C) 存為矩陣 R_Pearson。
+設定矩陣列名與欄名為 DQ、DQ_BS、DQ_IS，並可用 matrix list 預覽。
+*　輸出 Table 2（RTF）
+使用 esttab 將 R_Combined 輸出為 RTF：
+檔名：Table2.rtf
+顯示格式：小數點後三位（fmt(3)），不顯示觀測數與多餘標頭（nonumbers、noobs、nomtitles）。
+*  輸出資料（Intermediate output）
+Table2.rtf
+內容：DQ、DQ_BS、DQ_IS 的相關係數矩陣（Pearson）。
+
+
 
 <h3>Table 4 </h3>
 首先把完整主檔.dta打開，內含之前計算的DQ、Compustat資料、股價資料及各種所需變數，並與 EPS真.dta 併檔。
