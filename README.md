@@ -179,7 +179,142 @@ DQ = (DQ_BS + DQ_IS) / 2
 
 <h3>Table 1 - PanelB </h3>
 
+* 區塊 0：讀檔
 
+use "新replica.dta", clear
+操作細節：
+直
+接讀入 Sta
+ta 資料檔 新replica.dta，並清空記憶體中既有資料（clear）。
+邏輯與目的：
+
+將後續計算等權重
+DQ 與進行 Panel B 迴歸的 firm-year 原始資料載入記憶體。
+區塊 1：等權
+重* 區塊 1 DQ_BS、DQ_IS、DQ（firm-year 層級）
+
+1.1 Balance sheet groups（DQ_BS）
+
+先將資產負債表細項科目分為 11 組（act、ao、ceq、dltt、intan、ivao、lct、lo、ppent、pstk、txditc）。對每一組計算「非缺漏科目占比」，再將 11 組占比做等權重平均得到 DQ_BS。
+
+操作細節：
+
+1. 群組定義：以 local 指令建立各組細項科目清單，並彙整成 local bsgroups ...。
+2. 缺變數補建：迴圈逐一檢查每個科目變數是否存在；若不存在則 gen var = .，避免 rownonmiss() 報錯。
+3. 組內非缺漏數：egen nonmiss_組別 = rownonmiss(該組變數)，得到該 firm-year 在該組可用欄位數。
+4. 組內占比：dq_組別 = nonmiss_組別 / (該組科目總數)，介於 0–1。
+5. 組間等權平均：egen DQ_BS = rowmean(dq_act ... dq_txditc)；並 label var DQ_BS。
+
+邏輯與目的：
+
+以「細分科目是否有值（非缺漏）」衡量資產負債表揭露完整度；DQ_BS 越高代表該 firm-year 的 BS 分拆揭露越完整。
+
+1.2 Income statement groups（DQ_IS）
+
+將損益表細項科目分為 7 組（citotal、nopi、spi、txt、xido、xint、xopr），同樣計算各組「非缺漏科目占比」，再做等權重平均得到 DQ_IS。
+
+操作細節：
+
+1. 清除舊中介變數：先 capture drop nonmiss_* dq_* DQ_IS，避免重複執行時因同名變數中斷。
+2. 群組定義：以 local 建立 7 組科目清單，彙整成 local isgroups ...。
+3. 缺變數補建→計數→占比：流程與 DQ_BS 相同：
+不存在則補建為 missing
+rownonmiss() 計算組內非缺漏科目數
+除以該組科目總數得到 dq_組別
+組間等權平均：egen DQ_IS = rowmean(dq_citotal ... dq_xopr)；並 label var DQ_IS。
+
+邏輯與目的：
+
+以相同的「非缺漏比例」概念衡量損益表的分拆揭露完整度。
+
+1.3 Overall DQ（綜合 DQ）
+
+操作細節：
+
+先 capture drop DQ，再生成：DQ = (DQ_BS + DQ_IS)/2，並加上變數標籤。
+
+邏輯與目的：
+
+建立 Panel B 迴歸使用的三個被解釋變數：DQ（整體）、DQ_BS、DQ_IS。
+
+* 區塊 2：Sample 限制（firm-year 篩選）
+
+以年度、資產條件、國別（若有）、產業排除與 DQ 可用性，建立 Panel B 样本。
+
+操作細節：
+
+1. 年度變數建立：優先用 year；若無則用 fyear；再無則用 year(datadate) 生成 year。
+2. 期間限制：僅保留 year ∈ [1973, 2011]。
+3. 資產條件：排除 at==. 或 at<=0。
+4. 國別限制（條件式）：若存在 fic，保留 fic=="USA"。
+5. SIC 數值化：destring sic, replace ignore(" ")。
+6. 產業排除：排除金融（6000–6999）與公用事業（4900–4999）。
+7. 主變數可用性：排除 DQ_BS、DQ_IS、DQ 任一缺值。
+
+邏輯與目的：
+
+使樣本期間一致，排除不合理資產值與特定產業，並確保 DQ 指標可供後續 trimming 與迴歸使用。
+
+* 區塊 3：1%–99% trimming（對 DQ、DQ_BS、DQ_IS）
+
+對三個 DQ 指標各自取 1% 與 99% 分位數，剔除區間外觀測值（trimming）
+
+操作細節：
+
+對 DQ、DQ_BS、DQ_IS 逐一 summarize, detail 取得 r(p1)、r(p99)，並 drop if v<p1 | v>p99。
+
+邏輯與目的：
+
+降低極端值對 Panel B 迴歸估計結果的影響。
+
+* 區塊 4：建立 Fama–French 12 產業別（ff12）
+
+依 sic 的區間對照指派 ff12=1..12，未匹配者歸入 ff12=12。
+
+操作細節：
+
+先 capture drop ff12 並 gen ff12=.
+依程式列示的 SIC 範圍逐段 replace ff12 = k if ...
+最後 replace ff12 = 12 if ff12==.
+
+邏輯與目的：
+
+建立產業分類，以供 Panel B 用 ib2.ff12 建立產業固定效果（industry dummies）。
+
+* 區塊 5：三個迴歸 + Adjusted R²（%）
+
+以 ff12（基準類別=2）解釋 DQ、DQ_BS、DQ_IS 的產業間差異，並將 adjusted R² 轉為百分比供表格呈現。
+
+操作細節：
+
+1. ssc install estout, replace 安裝/更新 estout。
+2. 依序估計三個模型（robust）：
+regress DQ ib2.ff12, robust → est store m_dq
+regress DQ_BS ib2.ff12, robust → est store m_dq_bs
+regress DQ_IS ib2.ff12, robust → est store m_dq_is
+3. 各模型以 estadd scalar r2_pct = e(r2_a)*100 存入 r2_pct
+
+邏輯與目的：
+
+量化揭露品質在產業間的系統性差異，並用 Adjusted R²（%）表示產業固定效果的解釋力。
+
+* 區塊 6：輸出 Table 1 Panel B（RTF）
+
+使用 esttab 將三個模型輸出成 Word 可開啟的 RTF 表格，係數三位小數、Adj-R² 以百分比顯示。
+
+操作細節：
+
+cells(b(star fmt(3)))：係數三位小數、顯著性星號
+mtitle("DQ" "DQ_BS" "DQ_IS")：三欄模型標題
+drop(2.ff12)：不顯示基準類別
+stats(r2_pct, labels("Adjusted-R2 (%)") fmt(2))：只顯示調整後 R²（%）
+coeflabels(...)：依程式指定產業名稱與截距名稱
+fonttbl("Times New Roman")：指定字型
+display 印出完成訊息
+
+輸出檔案：
+
+Table1_PanelB_equalDQ_trim.rtf
 
 <h3>Table 1 - PanelC </h3>
 
