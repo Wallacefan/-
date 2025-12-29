@@ -318,6 +318,128 @@ Table1_PanelB_equalDQ_trim.rtf
 
 <h3>Table 1 - PanelC </h3>
 
+* 區塊 0：由 Segment 資料計算 firm-year 的 NSEG（併檔前處理）
+
+讀入 segment.dta
+確保 srcdate 為 Stata 日期（若為字串則轉換）
+fyear = year(srcdate)
+以 gvkey fyear sid 去除重複
+在 gvkey fyear 內計數得到 NSEG=_N
+保留 gvkey tic fyear NSEG（每個 firm-year 一筆）
+覆寫存回 segment.dta
+
+操作細節：
+
+1. srcdate 日期型態檢查與轉換：若 srcdate 非 numeric，則用 date(srcdate,"YMD") 轉成 Stata date。
+2. 產生 fyear：gen int fyear = year(srcdate)。
+3. 去除同一 gvkey fyear sid 的重複觀測：bysort gvkey fyear sid: keep if _n==1。
+4. 以 bysort gvkey fyear: gen NSEG=_N 得到 firm-year 部門數。
+5. 保留 firm-year 唯一筆數：bysort gvkey fyear: keep if _n==1，並覆寫 segment.dta。
+
+邏輯與目的：
+
+把 segment-level 資料轉成 firm-year 層級的 NSEG，以供後續與 Compustat 主檔合併並生成 Panel C 所需控制變數。
+
+* 區塊 1：合併 NSEG 至 Compustat 主檔並重算 DQ
+
+use 新replica.dta
+若缺 fyear，以 year(datadate) 生成
+merge m:1 gvkey fyear using segment.dta
+計算 DQ_BS、DQ_IS、DQ（同你 Panel B 的等權重非缺漏比例法）
+save replica_with_NSEG.dta, replace
+
+* 操作細節：
+
+1. 確保主檔有 fyear（若無，從 datadate 推得）。
+2. 以 gvkey fyear 進行 m:1 合併，把 NSEG 合併進 firm-year 主檔。
+3. 依你程式重新計算 DQ_BS、DQ_IS、DQ（同 Panel B 的做法：缺變數補建為 missing → rownonmiss() → 比例 → rowmean()）。
+4. 輸出 replica_with_NSEG.dta。
+
+邏輯與目的：
+
+建立 Panel C 的分析母檔：firm-year 層級、同時包含 DQ 指標與 NSEG，供後續生成控制變數並彙總至年度層級。
+
+* 區塊 2：讀入 replica_with_NSEG.dta 並設定 Panel C 年度樣本（1976–2008）
+
+use replica_with_NSEG.dta
+確保 fyear 存在（缺則由 datadate 推得）
+keep if fyear >=1976 & fyear <=2008
+
+操作細節：
+
+只保留 1976–2008 的觀測值，以符合 Panel C 的樣本期間設定。
+
+邏輯與目的：
+
+將分析區間固定在 Panel C 需要的年度範圍，避免其他年份影響年度聚合與回歸。
+
+* 區塊 3：建立控制變數（INT、SI_ratio、LOSS_dum）
+
+3.1 INT
+
+INT = intan / at（若 at 不為 missing）
+
+3.2 SI_ratio
+
+若存在 spi：SI_ratio = abs(spi) / at
+若不存在 spi：SI_ratio = .
+
+3.3 LOSS_dum（loss dummy）
+
+依序嘗試用下列變數生成：
+
+1. ni < 0
+2. 若無 ni，改用 ib < 0
+3. 若無 ib，改用 citotal < 0
+4. 若無 citotal，改用 cibegni < 0
+若上述皆不存在則 LOSS_dum = .，並印出警告訊息；接著以 tab LOSS_dum 檢查是否為 0/1。
+
+邏輯與目的：
+
+建立 Panel C 回歸所需的公司特性控制變數：無形資產比、特殊項目比率，以及損失公司比例（後續年度化）。
+
+* 區塊 4：collapse 成年度層級（year-level dataset）
+
+collapse (mean) DQ DQ_BS DQ_IS INT SI_ratio LOSS_share = LOSS_dum NSEG_ave = NSEG, by(fyear)
+
+操作細節：
+
+以 fyear 分組，對 firm-year 變數取年度平均；其中 LOSS_share 先以 LOSS_dum 的平均值表示「損失公司占比」。
+
+邏輯與目的：
+
+把 firm-year 資料轉為年度序列資料，使 Panel C 回歸在年度層級上估計（每年一筆）。
+
+* 區塊 5：轉換與衍生（LOSS_share%、logNSEG_ave），並檢視摘要統計
+
+LOSS_share = LOSS_share * 100（轉為百分比）
+logNSEG_ave = log(NSEG_ave)
+summarize DQ INT SI_ratio LOSS_share logNSEG_ave
+
+邏輯與目的：
+
+讓 LOSS 以百分比呈現、NSEG 以 log 尺度進入回歸，並先檢查年度序列變數的基本分布。
+
+* 區塊 6：年度層級回歸與輸出 Table 1 Panel C
+
+回歸：
+
+reg DQ INT SI_ratio LOSS_share logNSEG_ave
+reg DQ_BS INT SI_ratio LOSS_share logNSEG_ave
+reg DQ_IS INT SI_ratio LOSS_share logNSEG_ave
+
+表格輸出：
+
+以 esttab 輸出 Table1_PanelC.rtf：
+
+顯示係數（3 位小數）與 t 值（括號內、2 位小數）
+統計量輸出 Adjusted-R2（r2_a）
+係數標籤：INT、SI_AVE、LOSS、NSEG_AVE 等依你的 coeflabels() 命名
+字型 Times New Roman
+
+輸出檔案：
+
+Table1_PanelC.rtf
 
 
 <h3>Table 2 </h3>
