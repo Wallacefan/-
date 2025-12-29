@@ -20,7 +20,7 @@
 | Figure1  | Figure1.do  |  新replica.dta | Compustat, LBES  | 資料夾"Figure1"內 |
 | Table 1 panel A | Table1 panel A.do  |  新replica.dta | Compustat, LBES | 資料夾"table1_panelA"內 |
 | Table 1 panel B | Table1 panel B and C.do |  新replica.dta | Compustat, LBES | 資料夾"Table 1_Panel B and C"內 |
-| Table 1 panel C | Table1 panel B and C.do |  新replica.dta；segment.dta；replica_with_NSEG.dta | Compustat | 資料夾"Table 1_Panel B and C"內 |
+| Table 1 panel C | Table1 panel B and C.do |  新replica.dta；segment.dta；replica_with_NSEG.dta | Compustat, LBES | 資料夾"Table 1_Panel B and C"內 |
 | Table 2 | Table2.do |  新replica.dta | Compustat, LBES  | 資料夾"Table 2"內 |
 | Table 3 | Table3_法一.do |  give.dta；ret.dta | Compustat,CRSP Stock (Annual) | 資料夾"Table3之法一"內 |
 | Table 3 | Table3_法二.do |  give.dta | Compustat | 資料夾"Table3之法二"內 |
